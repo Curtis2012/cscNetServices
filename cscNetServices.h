@@ -360,7 +360,7 @@ void startOTA()
 	delay(500);
 }
 
-void HandleOTA()
+void handleOTA()
 {
 	startOTA();
 	ArduinoOTA.handle();
