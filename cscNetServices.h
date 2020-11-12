@@ -337,7 +337,7 @@ void startOTA()
 	//if (ArduinoOTA.getHostname() && ArduinoOTA.getHostname().length())
 
 	// No authentication by default
-	ArduinoOTA.setPassword((const char*)"123");
+	ArduinoOTA.setPassword(otaPwd);
 	ArduinoOTA.onStart([]() {
 		Serial.println("OTA Start");
 		});
@@ -362,7 +362,7 @@ void startOTA()
 
 void HandleOTA()
 {
-	StartOTAIfRequired();
+	startOTA();
 	ArduinoOTA.handle();
 }
 
