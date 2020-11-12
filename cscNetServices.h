@@ -6,6 +6,9 @@
 	Creation Date: 2020-05-16
 
 	Author: Curtis Collins ... with much copied from others
+	
+	2020-11-11 C. Collins, added OTA services
+	2020-11-12 C. Colllins, migrated to github
 
   Todo:
   
@@ -324,7 +327,7 @@ bool publishMQTT(const char* topic, const char* payload)
 // OTA Services
 //
 
-void StartOTAIfRequired()
+void startOTA()
 {
 	if (ota_started)
 		return;
