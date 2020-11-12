@@ -1,0 +1,290 @@
+/*
+	CSC's Common Network Services Library
+
+	Description: Private library for common network services used in my apps. Not designed for more generalized use.
+
+	Creation Date: 2020-05-16
+
+	Author: Curtis Collins ... with much copied from others
+
+  Todo:
+  
+     - Migrate off TimeLib to NTPClient
+	 
+*/
+
+#ifdef ESP8266 
+   #include <ESP8266WiFi.h> 
+   #include <ESP8266mDNS.h>
+#endif
+
+#ifdef ESP32 
+  #include <WiFi.h> 
+  #include <ESPmDNS.h>
+#endif
+
+
+#include <WiFiUdp.h>
+#include <PubSubClient.h>
+#include <ArduinoJson.h>
+//#include <TimeLib.h> 
+#include <NTPClient.h>
+#include <ArduinoOTA.h>
+
+
+#define MSGBUFFLEN 300
+#define WIFIRETRYCNT 5
+#define WIFIRETRYDELAY 5000
+
+#define WIFIREBOOT true
+
+#define MQTTRETRYDELAY 5000
+#define MQTTRETRYCOUNT 5
+
+bool debug = true;
+
+const char* pssid = "COWIFI151420636/0";
+const char* ppwd = "WiFi-89951645";
+const char* assid = "Bodega";
+const char* apwd = "Sail2012";
+const char* otaPwd = "Sail2012";
+
+bool wifiTryAlt = false;
+
+int mqttPort = 1883;
+int hostEntry = -1;
+int msgn = 0;
+
+const char* mqttTopic = "(empty)";
+const char* mqttUid = " ";
+const char* mqttPwd = " ";
+
+char nodeName[24] = "";
+char msgbuff[MSGBUFFLEN] = "";
+
+WiFiClient wifiClient;
+
+PubSubClient mqttClient(wifiClient);
+WiFiUDP Udp;
+
+WiFiUDP ntpUDP;
+NTPClient timeClient(ntpUDP);
+
+unsigned int localPort = 8888;  // local port to listen for UDP packets
+
+//
+// NTP Servers defs
+//
+
+static const char ntpServerName[] = "us.pool.ntp.org";
+//static const char ntpServerName[] = "time.nist.gov";
+//static const char ntpServerName[] = "time-a.timefreq.bldrdoc.gov";
+//static const char ntpServerName[] = "time-b.timefreq.bldrdoc.gov";
+//static const char ntpServerName[] = "time-c.timefreq.bldrdoc.gov";
+
+//
+// Time Zone
+//
+
+int timeZone = 0;
+
+//
+// General fucntions
+//
+
+void outputMsg(char* msg)
+{
+	Serial.println(msg);
+}
+
+//
+// WiFi Services
+//
+
+void connectWiFi()
+{
+	int retryCnt = 0;
+	bool wifiAltTried = false;
+	const char* ssid = pssid;
+    const char* pwd = ppwd;
+
+//	WiFi.hostname(nodeName);
+	WiFi.mode(WIFI_STA);
+	Serial.print(F("\nWiFi connecting to "));
+	Serial.println(ssid);
+	WiFi.begin(ssid, pwd);
+	while ((WiFi.status() != WL_CONNECTED) && (retryCnt < WIFIRETRYCNT))
+	{
+		delay(WIFIRETRYDELAY);
+		retryCnt++;
+		if ((retryCnt >= WIFIRETRYCNT) && wifiTryAlt && !wifiAltTried)
+		{
+		    ssid = assid;
+			pwd  = apwd;
+			retryCnt = 0;
+			Serial.print(F("\nWiFi connecting to alt SSID... "));
+			Serial.println(ssid);
+			WiFi.begin(ssid, pwd);
+			wifiAltTried = true;
+		};
+	}
+
+	if (WiFi.status() == WL_CONNECTED)
+	{
+		Serial.print(F("\nWiFi connected to "));
+		Serial.print(ssid);
+		Serial.print(F(" "));
+		Serial.println(WiFi.localIP());
+	}
+	else
+	{
+		if (WIFIREBOOT)
+		{
+			Serial.println(F("WiFi not connected, rebooting..."));
+			ESP.restart();
+		}
+		else
+		{
+			Serial.println(F("WiFi not connected."));
+		}
+	}
+}
+
+//
+// mDNS Services
+//
+
+bool setupMdns(char* nodeName)
+{
+	if (!MDNS.begin(nodeName))
+	{
+		Serial.println("Error setting up MDNS responder!");
+		return(false);
+	}
+	return(true);
+}
+
+int findService(char* serviceType, char* protocol)
+{
+	int n = 0;
+	n = MDNS.queryService(serviceType, protocol); // Send out query for esp tcp services
+	if (n == 0)
+	{
+		Serial.println("no services found");
+	}
+	else
+	{
+		msgn = snprintf(msgbuff, MSGBUFFLEN, "%i service(s) found, service 0: ", n);
+		Serial.print(msgbuff);
+		Serial.print(MDNS.hostname(0));
+		Serial.print(" ");
+		Serial.print(MDNS.IP(0));
+		Serial.print(":");
+		Serial.println(MDNS.port(0));
+		return (0); // return index to 1st service only
+	}
+	return(-1);  // no service found
+}
+
+//
+// MQTT Services
+//
+
+
+void connectMQTT(bool subscribe, IPAddress server)
+{
+	int retry_cnt = 0;
+
+	Serial.print("\nConnecting to MQTT Server: ");
+	Serial.println(server);
+	while (!mqttClient.connected()) {
+
+		if (mqttClient.connect(nodeName))
+		{
+			Serial.println("MQTT connected");
+			if (subscribe)
+			{
+				if (!mqttClient.subscribe(mqttTopic))
+				{
+					Serial.print("\nMQTT subscription to ");
+					Serial.print(mqttTopic);
+					Serial.println(" failed!");
+					
+				}
+				else
+				{
+				   Serial.print("MQTT mqttTopic  subscribed: ");
+				   Serial.print(mqttTopic);
+				}
+			}
+
+			retry_cnt = 0;
+		}
+		else
+		{
+			Serial.print("failed, rc=");
+			Serial.print(mqttClient.state());
+			Serial.println(" try again in 5 seconds");
+			delay(MQTTRETRYDELAY);
+			retry_cnt++;
+		}
+
+		if (retry_cnt > MQTTRETRYCOUNT)
+		{
+			Serial.println();
+			Serial.println("Rebooting...");
+			ESP.restart();
+		}
+	}
+}
+
+bool setupMQTT(IPAddress mqttserver, int mqttPort, bool mqttsubscribe, std::function<void(char*, uint8_t*, unsigned int)> callback)
+{
+	Serial.println();
+	Serial.println("MQTT Setup... ");
+	mqttClient.setServer(mqttserver, mqttPort);
+	mqttClient.setCallback(callback);
+	connectMQTT(mqttsubscribe, mqttserver);
+	if (mqttClient.state() != MQTT_CONNECTED)
+	{
+	 Serial.println("MQTT NOT connected!");
+	 return(false);
+	}
+	else
+	 {
+	   return(true);
+	 };
+	    
+  return(false);
+}
+
+
+//
+// OTA Services
+//
+
+  
+//
+// NTP Services
+//
+
+bool setupNTP(int timeZone)     // accepts TimeZone in hours and converts to seconds as expected by NTPClient.setTimeOffset
+{
+	Serial.println("\nNTP Setup...\nwaiting for NTP server sync");
+	timeClient.begin();
+	timeClient.setTimeOffset(timeZone * 3600);
+	Serial.print("Time Zone Set to "); Serial.println(timeZone);
+	if (timeClient.update()) 
+	{ 
+       Serial.print("\nNTP time set to: "); 
+	   Serial.println(timeClient.getFormattedTime());
+	   return(true);
+	} 
+	  else 
+	  { 
+	     Serial.println("\nNTP time NOT set");
+	     return(false);
+	  }
+	
+	return(true);
+}
