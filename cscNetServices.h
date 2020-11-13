@@ -46,14 +46,14 @@
 
 #define ALLNODES 255
 
-bool debug = true;
+bool debug = false;
 bool ota_started;
 
-const char* pssid = "COWIFI151420636/0";
-const char* ppwd = "WiFi-89951645";
-const char* assid = "Bodega";
-const char* apwd = "Sail2012";
-const char* otaPwd = "Sail2012";
+const char* pssid;
+const char* ppwd;
+const char* assid;
+const char* apwd;
+const char* otaPwd;
 
 bool wifiTryAlt = false;
 
@@ -61,11 +61,11 @@ int mqttPort = 1883;
 int hostEntry = -1;
 int msgn = 0;
 
-const char* mqttTopic = "(empty)";
-const char* mqttTopicData = "(empty)";
-const char* mqttTopicCtrl = "(empty)";
-const char* mqttUid = " ";
-const char* mqttPwd = " ";
+const char* mqttTopic;
+const char* mqttTopicData;
+const char* mqttTopicCtrl;
+const char* mqttUid;
+const char* mqttPwd;
 
 char nodeName[24] = "";
 char msgbuff[MSGBUFFLEN] = "";
