@@ -35,7 +35,7 @@
 #include <ArduinoOTA.h>
 
 
-#define MSGBUFFLEN 300
+#define MSGBUFFLEN 500
 #define WIFIRETRYCNT 5
 #define WIFIRETRYDELAY 5000
 
@@ -61,7 +61,7 @@ int mqttPort = 1883;
 int hostEntry = -1;
 int msgn = 0;
 
-const char* mqttTopic;
+//const char* mqttTopic;
 const char* mqttTopicData;
 const char* mqttTopicCtrl;
 const char* mqttUid;
