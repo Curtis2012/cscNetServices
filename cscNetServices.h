@@ -6,24 +6,24 @@
 	Creation Date: 2020-05-16
 
 	Author: Curtis Collins ... with much copied from others
-	
+
 	2020-11-11 C. Collins, added OTA services
 	2020-11-12 C. Colllins, migrated to github
 
   Todo:
-  
-     - Migrate off TimeLib to NTPClient
-	 
+
+	 - Migrate off TimeLib to NTPClient
+
 */
 
 #ifdef ESP8266 
-   #include <ESP8266WiFi.h> 
-   #include <ESP8266mDNS.h>
+#include <ESP8266WiFi.h> 
+#include <ESP8266mDNS.h>
 #endif
 
 #ifdef ESP32 
-  #include <WiFi.h> 
-  #include <ESPmDNS.h>
+#include <WiFi.h> 
+#include <ESPmDNS.h>
 #endif
 
 
@@ -103,12 +103,9 @@ int timeZone = 0;
 String timestampString()
 {
 	String timestamp = "";
-	char time24[11] = "hh:mm:ss: ";
-
-	msgn = sprintf(time24, "%02i:%02i:%02i: ", hour(), minute(), second());
 
 	//timestamp = String(year()) + "-" + String(month()) + "-" + day() + " " + hour() + ":" + minute() + ":" + second();
-	timestamp = String(year()) + "-" + String(month()) + "-" + day() + " " + String(time24) + " ";
+	timestamp = String(year()) + "-" + String(month()) + "-" + day() + " " + timeClient.getFormattedTime() + " ";
 
 	return(timestamp);
 
@@ -116,8 +113,8 @@ String timestampString()
 
 void outputMsg(char* msg)
 {
-    Serial.println();
-    Serial.print(timestampString());
+	Serial.println();
+	Serial.print(timestampString());
 	Serial.print(nodeName);
 	Serial.print(" ");
 	Serial.println(msg);
@@ -134,9 +131,9 @@ void connectWiFi()
 	int retryCnt = 0;
 	bool wifiAltTried = false;
 	const char* ssid = pssid;
-    const char* pwd = ppwd;
+	const char* pwd = ppwd;
 
-//	WiFi.hostname(nodeName);
+	//	WiFi.hostname(nodeName);
 	WiFi.mode(WIFI_STA);
 	Serial.print(F("\nWiFi connecting to "));
 	Serial.println(ssid);
@@ -147,8 +144,8 @@ void connectWiFi()
 		retryCnt++;
 		if ((retryCnt >= WIFIRETRYCNT) && wifiTryAlt && !wifiAltTried)
 		{
-		    ssid = assid;
-			pwd  = apwd;
+			ssid = assid;
+			pwd = apwd;
 			retryCnt = 0;
 			Serial.print(F("\nWiFi connecting to alt SSID... "));
 			Serial.println(ssid);
@@ -163,6 +160,7 @@ void connectWiFi()
 		Serial.print(ssid);
 		Serial.print(F(" "));
 		Serial.println(WiFi.localIP());
+		Udp.begin(localPort);
 	}
 	else
 	{
@@ -184,7 +182,7 @@ void connectWiFi()
 
 bool setupMdns(char* nodeName)
 {
-    Serial.println("\nmDNS Setup...");
+	Serial.println("\nmDNS Setup...");
 	if (!MDNS.begin(nodeName))
 	{
 		Serial.println("Error setting up MDNS responder!");
@@ -222,22 +220,22 @@ int findService(char* serviceType, char* protocol)
 
 bool subscribeMQTT(const char* topic)
 {
-    bool rc = false;
-	
+	bool rc = false;
+
 	if (!mqttClient.subscribe(topic))
 	{
 		Serial.print("\nMQTT subscription to ");
 		Serial.print(topic);
 		Serial.println(" failed!");
-		
+
 	}
 	else
 	{
-	   Serial.print("\nMQTT mqttTopic subscribed: ");
-	   Serial.print(topic);
-	   rc = true;
+		Serial.print("\nMQTT mqttTopic subscribed: ");
+		Serial.print(topic);
+		rc = true;
 	}
-	
+
 	return(rc);
 
 }
@@ -246,7 +244,7 @@ void connectMQTT(bool subscribe, const char* topic, IPAddress server)
 {
 	int retry_cnt = 0;
 	bool rc = false;
-	
+
 	Serial.print("\nConnecting to MQTT Server: ");
 	Serial.println(server);
 	while (!mqttClient.connected()) {
@@ -256,13 +254,13 @@ void connectMQTT(bool subscribe, const char* topic, IPAddress server)
 			Serial.println("MQTT connected");
 			if (subscribe)
 			{
-                rc = subscribeMQTT(topic);
-				if (!rc) 
+				rc = subscribeMQTT(topic);
+				if (!rc)
 				{
-				msgn = snprintf(msgbuff, MSGBUFFLEN, "\nSubscription to MQTT Topic %s failed", topic);
-				Serial.println(msgbuff);
+					msgn = snprintf(msgbuff, MSGBUFFLEN, "\nSubscription to MQTT Topic %s failed", topic);
+					Serial.println(msgbuff);
 				}
-				
+
 			}
 
 			retry_cnt = 0;
@@ -294,33 +292,33 @@ bool setupMQTT(IPAddress mqttserver, int mqttPort, bool mqttsubscribe, const cha
 	connectMQTT(mqttsubscribe, topic, mqttserver);
 	if (mqttClient.state() != MQTT_CONNECTED)
 	{
-	 Serial.println("MQTT NOT connected!");
-	 return(false);
+		Serial.println("MQTT NOT connected!");
+		return(false);
 	}
 	else
-	 {
-	   return(true);
-	 };
-	    
-  return(false);
+	{
+		return(true);
+	};
+
+	return(false);
 }
 
 bool publishMQTT(const char* topic, const char* payload)
 {
-  int retryCnt = 0;
-  bool mqttSent = false;
-  
-  while (!mqttClient.publish(topic, payload) && (retryCnt < MQTTRETRYCOUNT))
-  {
-    if (debug) Serial.println("MQTT Published failed, retrying....");
-    retryCnt++;
-    delay(MQTTRETRYDELAY);
-  }  
-  
-  if (retryCnt < MQTTRETRYCOUNT) mqttSent = true;
-  
-  return(mqttSent);
-  
+	int retryCnt = 0;
+	bool mqttSent = false;
+
+	while (!mqttClient.publish(topic, payload) && (retryCnt < MQTTRETRYCOUNT))
+	{
+		if (debug) Serial.println("MQTT Published failed, retrying....");
+		retryCnt++;
+		delay(MQTTRETRYDELAY);
+	}
+
+	if (retryCnt < MQTTRETRYCOUNT) mqttSent = true;
+
+	return(mqttSent);
+
 }
 
 //
@@ -366,28 +364,91 @@ void handleOTA()
 	ArduinoOTA.handle();
 }
 
-  
+
 //
 // NTP Services
 //
 
+// const int NTP_PACKET_SIZE = 48; // NTP time is in the first 48 bytes of message
+byte packetBuffer[NTP_PACKET_SIZE]; //buffer to hold incoming & outgoing packets
+
+//IPAddress timeServer(132, 163, 4, 101); // time-a.timefreq.bldrdoc.gov
+ IPAddress timeServer(132, 163, 4, 102); // time-b.timefreq.bldrdoc.gov
+// IPAddress timeServer(132, 163, 4, 103); // time-c.timefreq.bldrdoc.gov
+
+// send an NTP request to the time server at the given address
+void sendNTPpacket(IPAddress& address)
+{
+	// set all bytes in the buffer to 0
+	memset(packetBuffer, 0, NTP_PACKET_SIZE);
+	// Initialize values needed to form NTP request
+	// (see URL above for details on the packets)
+	packetBuffer[0] = 0b11100011;   // LI, Version, Mode
+	packetBuffer[1] = 0;     // Stratum, or type of clock
+	packetBuffer[2] = 6;     // Polling Interval
+	packetBuffer[3] = 0xEC;  // Peer Clock Precision
+	// 8 bytes of zero for Root Delay & Root Dispersion
+	packetBuffer[12] = 49;
+	packetBuffer[13] = 0x4E;
+	packetBuffer[14] = 49;
+	packetBuffer[15] = 52;
+	// all NTP fields have been given values, now
+	// you can send a packet requesting a timestamp:                 
+	Udp.beginPacket(address, 123); //NTP requests are to port 123
+	Udp.write(packetBuffer, NTP_PACKET_SIZE);
+	Udp.endPacket();
+}
+
+time_t getNtpTime()
+{
+	while (Udp.parsePacket() > 0); // discard any previously received packets
+	Serial.println("Transmit NTP Request");
+	sendNTPpacket(timeServer);
+	uint32_t beginWait = millis();
+	while (millis() - beginWait < 1500) {
+		int size = Udp.parsePacket();
+		if (size >= NTP_PACKET_SIZE) {
+			Serial.println("Receive NTP Response");
+			Udp.read(packetBuffer, NTP_PACKET_SIZE);  // read packet into the buffer
+			unsigned long secsSince1900;
+			// convert four bytes starting at location 40 to a long integer
+			secsSince1900 = (unsigned long)packetBuffer[40] << 24;
+			secsSince1900 |= (unsigned long)packetBuffer[41] << 16;
+			secsSince1900 |= (unsigned long)packetBuffer[42] << 8;
+			secsSince1900 |= (unsigned long)packetBuffer[43];
+			return secsSince1900 - 2208988800UL + timeZone * SECS_PER_HOUR;
+		}
+	}
+	Serial.println("No NTP Response :-(");
+	return 0; // return 0 if unable to get the time
+}
+
+
+
 bool setupNTP(int timeZone)     // accepts TimeZone in hours and converts to seconds as expected by NTPClient.setTimeOffset
 {
+
+
+	Serial.println("try TimeLib sync start");
+	setSyncProvider(getNtpTime);
+	if (timeStatus() != timeNotSet) Serial.println("NTP time not set");
+	Serial.println("try TimeLib sync end");
+
 	Serial.println("\nNTP Setup...\nwaiting for NTP server sync");
 	timeClient.begin();
 	timeClient.setTimeOffset(timeZone * 3600);
 	Serial.print("Time Zone Set to "); Serial.println(timeZone);
-	if (timeClient.update()) 
-	{ 
-       Serial.print("\nNTP time set to: "); 
-	   Serial.println(timeClient.getFormattedTime());
-	   return(true);
-	} 
-	  else 
-	  { 
-	     Serial.println("\nNTP time NOT set");
-	     return(false);
-	  }
-	
-	return(true);
+	if (timeClient.update())
+	{
+		Serial.print("\nNTP time set to: ");
+		Serial.println(timeClient.getFormattedTime());
+		return(true);
+	}
+	else
+	{
+		Serial.println("\nNTP time NOT set");
+		return(false);
+	}
+
+	return(false);
 }
