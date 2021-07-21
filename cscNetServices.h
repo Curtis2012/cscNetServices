@@ -126,6 +126,12 @@ void outputMsg(char* msg)
 // WiFi Services
 //
 
+void showWiFiInfo()
+{
+	snprintf(msgbuff, MSGBUFFLEN, "\nWiFi Config:\n\npssid = %s\nassid = %s\nWIFIRETRYCNT = %i\nWIFIRERYDELAY = %i\nwifiTryAlt = %i\n\n", pssid, assid, WIFIRETRYCNT, WIFIRETRYDELAY, wifiTryAlt);
+	Serial.print(msgbuff);
+}
+
 void connectWiFi()
 {
 	int retryCnt = 0;
@@ -133,7 +139,7 @@ void connectWiFi()
 	const char* ssid = pssid;
 	const char* pwd = ppwd;
 
-	//	WiFi.hostname(nodeName);
+	showWiFiInfo();
 	WiFi.mode(WIFI_STA);
 	Serial.print(F("\nWiFi connecting to "));
 	Serial.println(ssid);
@@ -142,6 +148,8 @@ void connectWiFi()
 	{
 		delay(WIFIRETRYDELAY);
 		retryCnt++;
+		Serial.print(F("\nWiFi retry count = "));
+		Serial.println(retryCnt);
 		if ((retryCnt >= WIFIRETRYCNT) && wifiTryAlt && !wifiAltTried)
 		{
 			ssid = assid;
