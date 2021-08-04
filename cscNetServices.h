@@ -188,16 +188,42 @@ void connectWiFi()
 // mDNS Services
 //
 
-bool setupMdns(char* nodeName)
+bool setupMdns(char* nodeName, int retryCnt, bool reboot)
 {
+	int i = 0;
+	bool r = false;
+
 	Serial.println("\nmDNS Setup...");
-	if (!MDNS.begin(nodeName))
+
+	do
 	{
-		Serial.println("Error setting up MDNS responder!");
-		return(false);
+		if (!MDNS.begin(nodeName))
+		{
+			Serial.println("Error setting up MDNS responder!");
+		}
+		else
+		{
+			Serial.println("MDNS setup succesful!");
+			r = true;
+			break;
+		}
+		if (retryCnt != 0)
+		{
+			Serial.println("Retrying MDNS setup...");
+			delay(5000);
+		}
+	} 
+	while (i++ < retryCnt);
+
+	if (!r && reboot)
+	{
+		Serial.println("MDNS setup failed, rebooting");
+		ESP.restart();
 	}
-	return(true);
+	return(r);
 }
+
+
 
 int findService(char* serviceType, char* protocol)
 {
@@ -290,6 +316,7 @@ void connectMQTT(bool subscribe, const char* topic, IPAddress server)
 		}
 	}
 }
+
 
 bool setupMQTT(IPAddress mqttserver, int mqttPort, bool mqttsubscribe, const char* topic, std::function<void(char*, uint8_t*, unsigned int)> callback)
 {
@@ -431,32 +458,48 @@ time_t getNtpTime()
 	return 0; // return 0 if unable to get the time
 }
 
-
-
-bool setupNTP(int timeZone)     // accepts TimeZone in hours and converts to seconds as expected by NTPClient.setTimeOffset
+bool setupNTP(int timeZone, int retryCnt, int reboot)     // accepts TimeZone in hours and converts to seconds as expected by NTPClient.setTimeOffset
 {
 
-
-	Serial.println("try TimeLib sync start");
+/*	Serial.println("try TimeLib sync start");
 	setSyncProvider(getNtpTime);
 	if (timeStatus() != timeNotSet) Serial.println("NTP time not set");
 	Serial.println("try TimeLib sync end");
+	*/
 
-	Serial.println("\nNTP Setup...\nwaiting for NTP server sync");
-	timeClient.begin();
-	timeClient.setTimeOffset(timeZone * 3600);
-	Serial.print("Time Zone Set to "); Serial.println(timeZone);
-	if (timeClient.update())
+	int i = 0;
+	bool r = false;
+
+	do
 	{
-		Serial.print("\nNTP time set to: ");
-		Serial.println(timeClient.getFormattedTime());
-		return(true);
+		Serial.println("\nNTP Setup...\nwaiting for NTP server sync");
+		timeClient.begin();
+		timeClient.setTimeOffset(timeZone * 3600);
+		Serial.print("Time Zone Set to "); Serial.println(timeZone);
+		if (timeClient.update())
+		{
+			Serial.print("\nNTP time set to: ");
+			Serial.println(timeClient.getFormattedTime());
+			r = true;
+			break;
+		}
+		else
+		{
+			Serial.println("\nNTP time NOT set");
+			if (retryCnt != 0)
+			{
+				Serial.println("Retrying NTP setup...");
+				delay(5000);
+			}
+		}
 	}
-	else
+	while (i++ < retryCnt);
+
+	if (!r && reboot)
 	{
-		Serial.println("\nNTP time NOT set");
-		return(false);
+		Serial.println("NTP setup failed, rebooting");
+		ESP.restart();
 	}
 
-	return(false);
+	return(r);
 }
